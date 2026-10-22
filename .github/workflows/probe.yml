@@ -1,0 +1,63 @@
+name: path-capability-probe
+on:
+  push:
+  workflow_dispatch:
+jobs:
+  probe:
+    name: ${{ matrix.os }} / ${{ matrix.runtime }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        runtime: [node20, node22, node24, bun, deno]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        if: startsWith(matrix.runtime, 'node')
+        with:
+          node-version: ${{ matrix.runtime == 'node20' && '20' || matrix.runtime == 'node22' && '22' || '24' }}
+      - uses: oven-sh/setup-bun@v2
+        if: matrix.runtime == 'bun'
+        with:
+          bun-version: latest
+      - uses: denoland/setup-deno@v2
+        if: matrix.runtime == 'deno'
+        with:
+          deno-version: v2.x
+      - name: Install @parcel/watcher
+        if: matrix.runtime != 'deno'
+        run: npm install --no-audit --no-fund
+      - name: Toolchain
+        shell: bash
+        run: |
+          node --version || true
+          python3 --version || python --version
+          echo "uname: $(uname -a)"
+      - name: Probe (node)
+        if: startsWith(matrix.runtime, 'node')
+        shell: bash
+        env:
+          PROBE_OUT: results-${{ matrix.os }}-${{ matrix.runtime }}.json
+        run: node probe.mjs | tee probe-${{ matrix.os }}-${{ matrix.runtime }}.md
+      - name: Probe (bun)
+        if: matrix.runtime == 'bun'
+        shell: bash
+        env:
+          PROBE_OUT: results-${{ matrix.os }}-${{ matrix.runtime }}.json
+        run: bun probe.mjs | tee probe-${{ matrix.os }}-${{ matrix.runtime }}.md
+      - name: Probe (deno)
+        if: matrix.runtime == 'deno'
+        shell: bash
+        env:
+          PROBE_OUT: results-${{ matrix.os }}-${{ matrix.runtime }}.json
+        run: deno run -A probe.mjs | tee probe-${{ matrix.os }}-${{ matrix.runtime }}.md
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: results-${{ matrix.os }}-${{ matrix.runtime }}
+          path: |
+            results-*.json
+            probe-*.md
+          if-no-files-found: warn

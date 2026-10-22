@@ -1,0 +1,8 @@
+{
+  "name": "path-capability-matrix",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@parcel/watcher": "^2.5.1"
+  }
+}
