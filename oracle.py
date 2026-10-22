@@ -28,6 +28,12 @@ def main():
             with open(os.path.join(base, BAD_DIR, BAD_FILE), "wb") as f:
                 f.write(b"inner")
             out["created"] = [enc(BAD_FILE), enc(BAD_DIR)]
+        elif cmd == "symlink":
+            # link-rel -> foo<bad>.txt (relative), link-abs -> <dir>/foo<bad>.txt (absolute)
+            base = d if WIN else os.fsencode(d)
+            os.symlink(BAD_FILE, os.path.join(base, "link-rel" if WIN else b"link-rel"))
+            os.symlink(os.path.join(base, BAD_FILE), os.path.join(base, "link-abs" if WIN else b"link-abs"))
+            out["symlinked"] = True
         elif cmd == "touch":
             base = d if WIN else os.fsencode(d)
             with open(os.path.join(base, BAD_FILE), "wb") as f:

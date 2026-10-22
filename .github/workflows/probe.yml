@@ -29,6 +29,9 @@ jobs:
       - name: Install @parcel/watcher
         if: matrix.runtime != 'deno'
         run: npm install --no-audit --no-fund
+      - name: Install @parcel/watcher (deno)
+        if: matrix.runtime == 'deno'
+        run: deno install --allow-scripts
       - name: Toolchain
         shell: bash
         run: |

@@ -341,14 +341,27 @@ async function probeAll() {
     oracle("create", ld)
     const linkRel = path.join(ld, "link-rel")
     const linkAbs = path.join(ld, "link-abs")
-    tryCell("links", "symlinkSync(target=Buffer, relative)", "Buffer", () => {
-      fs.symlinkSync(BAD_BYTES, linkRel, "file")
-      return fs.existsSync(linkRel) ? { outcome: "lossless", detail: "link resolves" } : { outcome: "lossy", detail: "dangling link (target name altered)" }
-    })
-    tryCell("links", "symlinkSync(target=Buffer, absolute)", "Buffer", () => {
-      fs.symlinkSync(target, linkAbs, "file")
-      return fs.existsSync(linkAbs) ? { outcome: "lossless", detail: "link resolves" } : { outcome: "lossy", detail: "dangling link (target name altered)" }
-    })
+    // The runtime's own symlink creation, verified by the oracle, in a side dir.
+    {
+      const sd = path.join(root, "symlink-create")
+      fs.mkdirSync(sd)
+      oracle("create", sd)
+      tryCell("links", "symlinkSync(target=Buffer, relative)", "Buffer", () => {
+        fs.symlinkSync(BAD_BYTES, path.join(sd, "l1"), "file")
+        return fs.existsSync(path.join(sd, "l1")) ? { outcome: "lossless", detail: "link resolves" } : { outcome: "lossy", detail: "dangling link (target name altered)" }
+      })
+      tryCell("links", "symlinkSync(target=Buffer, absolute)", "Buffer", () => {
+        fs.symlinkSync(pathBytes(sd, BAD_BYTES), path.join(sd, "l2"), "file")
+        return fs.existsSync(path.join(sd, "l2")) ? { outcome: "lossless", detail: "link resolves" } : { outcome: "lossy", detail: "dangling link (target name altered)" }
+      })
+      if (WIN) tryCell("links", "symlinkSync(target=string(WTF-16))", "string", () => {
+        fs.symlinkSync(BAD_STR, path.join(sd, "l3"), "file")
+        return fs.existsSync(path.join(sd, "l3")) ? { outcome: "lossless", detail: "link resolves" } : { outcome: "lossy", detail: "dangling link (target name altered)" }
+      })
+    }
+    // Links made by the oracle, so readlink/realpath measure the runtime's output, not its symlink input handling.
+    const sl = oracle("symlink", ld)
+    cell("links", "oracle symlink (python)", "-", sl.error ? { outcome: "error", detail: sl.error.strerror } : { outcome: "lossless", detail: "link-rel and link-abs created by python" })
     tryCell("links", "readlinkSync", "utf8 (default)", () => classifyName(fs.readlinkSync(linkRel)))
     tryCell("links", "readlinkSync", "encoding:buffer", () => classifyName(fs.readlinkSync(linkRel, { encoding: "buffer" })))
     await tryCellAsync("links", "fsp.readlink", "encoding:buffer", async () => classifyName(await fsp.readlink(linkRel, { encoding: "buffer" })))
@@ -486,7 +499,7 @@ async function probeAll() {
     const watcher = mod.default ?? mod
     const events = []
     const sub = await watcher.subscribe(fixtureDir, (err, evs) => { if (evs) events.push(...evs) })
-    await sleep(500); touch(); await sleep(300); touch(); await sleep(2000)
+    await sleep(1500); touch(); await sleep(500); touch(); await sleep(4000)
     await sub.unsubscribe()
     const names = events.map((e) => path.basename(e.path))
     return pickWatched(names)
